@@ -59,7 +59,8 @@ class _MyAppState extends State<MyApp> {
           await imageLabeler.processImage(inputimage);
 
       for (ImageLabel label in labels) {
-        '${label.label} (${(label.confidence * 100).toStringAsFixed(2)}%)\n';
+        text +=
+            'Label: ${label.label} , CS: (${(label.confidence * 100).toStringAsFixed(2)}%)\n';
       }
       setState(() {
         scanning = false;
@@ -104,6 +105,17 @@ class _MyAppState extends State<MyApp> {
         child: ElevatedButton(
           child: Text('Take a picture'),
           onPressed: () => _getImage(ImageSource.camera),
+        ),
+      ),
+      SizedBox(
+        height: 50,
+        width: 50,
+      ),
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        child: Text(
+          text,
+          style: TextStyle(fontSize: 20, color: Colors.white),
         ),
       ),
     ]);
