@@ -18,27 +18,30 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  //final ImagePicker imagePicker; //will be used to pick image from gallery
-  XFile? _image;
+  final ImagePicker _imagePicker =
+      ImagePicker(); //will be used to pick image from gallery
+  //XFile? _image;
+  List<XFile> images = [];
+  Map<String, String> _labels = {}; //to store multiple images
   String text = '';
   bool scanning = false;
 
-  final ImagePicker _imagePicker = ImagePicker();
   /*@override
   void initState() {
     super.initState();
     imagePicker = ImagePicker();
   }*/
 
-//Method to retrieve image from a source; either camera or gallery
+//Method to retrieve images from a source; either camera or gallery
   _getImage(ImageSource source) async {
-    XFile? result = await _imagePicker.pickImage(source: source);
-    if (result != null) {
-      setState(() {
-        _image = result;
-      });
-      labeltext();
-    }
+    List<XFile>? results =
+        await _imagePicker.pickMultiImage(); //putting them in a list
+
+    setState(() {
+      images = results;
+      _labels.clear();
+    });
+    labeltext();
   }
 
 //Method to label the image
@@ -50,74 +53,89 @@ class _MyAppState extends State<MyApp> {
     });
 
     try {
-      final inputimage = InputImage.fromFilePath(_image!.path);
-      final ImageLabelerOptions options =
-          ImageLabelerOptions(confidenceThreshold: 0.5);
-      final imageLabeler = ImageLabeler(options: options);
+      for (XFile image in images) {
+        final inputimage = InputImage.fromFilePath(image.path);
+        final ImageLabelerOptions options =
+            ImageLabelerOptions(confidenceThreshold: 0.5);
+        final imageLabeler = ImageLabeler(options: options);
 
-      final List<ImageLabel> labels =
-          await imageLabeler.processImage(inputimage);
+        final List<ImageLabel> labels =
+            await imageLabeler.processImage(inputimage);
 
-      for (ImageLabel label in labels) {
+        String labelText = labels.map((label) {
+          return '${label.label} (${(label.confidence * 100).toStringAsFixed(2)}%)';
+        }).join("\n");
+
+        /*for (ImageLabel label in labels) {
         text +=
             'Label: ${label.label} , CS: (${(label.confidence * 100).toStringAsFixed(2)}%)\n';
+      }*/
+        setState(() {
+          //scanning = false;
+          _labels[image.path] = labelText; //saving labels for images
+        });
       }
+      //imageLabeler.close();
+    } catch (e) {
+      print('Error during text recognition: $e');
+    } finally {
+      //imageLabeler.close();
       setState(() {
         scanning = false;
       });
-
-      imageLabeler.close();
-    } catch (e) {
-      print('Error during text recognition: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(shrinkWrap: true, children: [
-      _image != null
-          ? SizedBox(
-              height: 400,
-              width: 400,
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  Image.file(File(_image!.path)),
-                  //if (widget.customPaint != null) widget.customPaint!,
-                ],
-              ),
-            )
-          : Icon(
-              Icons.image,
-              size: 200,
-            ),
-      Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16),
-        child: ElevatedButton(
-          child: Text('From Gallery'),
-          onPressed: () {
-            _getImage(ImageSource.gallery);
-          },
-        ),
+    return Scaffold(
+      appBar: AppBar(title: Text("Image Labeling")),
+      body: scanning
+          ? Center(
+              child: CircularProgressIndicator()) // Show loader while scanning
+          : images.isEmpty
+              ? Center(
+                  child: Text(
+                    "Select images to label",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: images.length,
+                  itemBuilder: (context, index) {
+                    final image = images[index];
+                    return Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Image.file(File(image.path),
+                              height: 200, fit: BoxFit.cover),
+                          SizedBox(height: 10),
+                          Text(
+                            _labels[image.path] ?? "Processing...",
+                            style: TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ElevatedButton(
+            child: Text("From Gallery"),
+            onPressed: () =>
+                _getImage(ImageSource.gallery), // image from gallery
+          ),
+          SizedBox(height: 10, width: 30),
+          ElevatedButton(
+            child: Text("From Camera"),
+            onPressed: () => _getImage(ImageSource.camera), //image from camera
+          ),
+        ],
       ),
-      Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16),
-        child: ElevatedButton(
-          child: Text('Take a picture'),
-          onPressed: () => _getImage(ImageSource.camera),
-        ),
-      ),
-      SizedBox(
-        height: 50,
-        width: 50,
-      ),
-      Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16),
-        child: Text(
-          text,
-          style: TextStyle(fontSize: 20, color: Colors.white),
-        ),
-      ),
-    ]);
+    );
   }
 }
